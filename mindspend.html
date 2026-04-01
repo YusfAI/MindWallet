@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MindSpend</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+:root{--bg:#0d0f14;--surface:#161920;--surface2:#1e2230;--border:#2a2f42;--accent:#f97316;--indigo:#6366f1;--green:#22c55e;--red:#ef4444;--yellow:#eab308;--text:#e8eaf0;--muted:#6b7280}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(99,102,241,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,.04) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+.wrap{max-width:680px;margin:0 auto;padding:36px 20px;position:relative;z-index:1}
+header{text-align:center;margin-bottom:40px;animation:fadeDown .6s ease both}
+.logo{display:inline-flex;align-items:center;gap:10px;margin-bottom:10px}
+.logo-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--accent),var(--indigo));border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:19px}
+.logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:21px;letter-spacing:-.5px}
+.logo-text span{color:var(--accent)}
+header p{color:var(--muted);font-size:13px;font-style:italic}
+.steps{display:flex;align-items:center;justify-content:center;gap:4px;margin-bottom:32px;animation:fadeDown .5s .1s ease both}
+.step{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);font-weight:500;transition:color .3s}
+.step.active{color:var(--text)}.step.done{color:var(--green)}
+.step-num{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-family:'Syne',sans-serif;font-weight:700;transition:all .3s}
+.step.active .step-num{background:var(--indigo);border-color:var(--indigo);color:#fff}
+.step.done .step-num{background:var(--green);border-color:var(--green);color:#fff}
+.step-line{width:32px;height:1px;background:var(--border)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:26px;margin-bottom:18px;animation:fadeUp .4s ease both}
+.card-title{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;margin-bottom:16px;display:flex;align-items:center;gap:9px}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:7px;font-weight:500}
+textarea,input,select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:11px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px 14px;outline:none;transition:border .2s;resize:none}
+textarea:focus,input:focus,select:focus{border-color:var(--indigo)}
+textarea{min-height:90px}
+select option{background:var(--surface2)}
+.emotions{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.emotion-btn{padding:7px 14px;border-radius:30px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all .2s}
+.emotion-btn:hover{border-color:var(--indigo);color:var(--text)}
+.emotion-btn.selected{border-color:var(--indigo);background:rgba(99,102,241,.15);color:var(--text)}
+.slider-wrap{display:flex;align-items:center;gap:12px;margin-top:8px}
+input[type=range]{-webkit-appearance:none;height:5px;border-radius:99px;background:var(--border);outline:none;flex:1;padding:0}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--indigo);cursor:pointer;border:2px solid var(--bg)}
+.slider-val{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;color:var(--indigo);min-width:28px;text-align:center}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:13px 22px;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;border:none;transition:all .2s}
+.btn-primary{background:linear-gradient(135deg,var(--indigo),#818cf8);color:#fff;width:100%;justify-content:center}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--muted);font-size:13px;padding:9px 16px}
+.btn-outline:hover{border-color:var(--indigo);color:var(--text)}
+.btn-danger{background:rgba(239,68,68,.15);border:1.5px solid rgba(239,68,68,.3);color:var(--red);font-size:13px;padding:9px 16px}
+.alert{border-radius:16px;padding:22px;margin-bottom:18px;animation:alertPop .4s cubic-bezier(.34,1.56,.64,1) both}
+.alert.danger{background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.35)}
+.alert.warning{background:rgba(234,179,8,.08);border:1.5px solid rgba(234,179,8,.3)}
+.alert.safe{background:rgba(34,197,94,.08);border:1.5px solid rgba(34,197,94,.3)}
+.alert-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.alert-icon{font-size:24px}
+.alert-title{font-family:'Syne',sans-serif;font-weight:800;font-size:17px}
+.alert.danger .alert-title{color:var(--red)}.alert.warning .alert-title{color:var(--yellow)}.alert.safe .alert-title{color:var(--green)}
+.alert-body{font-size:14px;line-height:1.65;color:var(--text);opacity:.9}
+.alert-body p{margin-bottom:8px}.alert-body p:last-child{margin-bottom:0}
+.loading{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;padding:16px 0}
+.dots{display:flex;gap:4px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--indigo);animation:bounce .8s infinite}
+.dot:nth-child(2){animation-delay:.15s}.dot:nth-child(3){animation-delay:.3s}
+.section{display:none}.section.active{display:block}
+.history-item{padding:14px 16px;background:var(--surface2);border-radius:12px;margin-bottom:10px;border-left:3px solid var(--border);font-size:13px}
+.history-item.danger{border-left-color:var(--red)}.history-item.warning{border-left-color:var(--yellow)}.history-item.safe{border-left-color:var(--green)}
+.history-meta{color:var(--muted);font-size:11px;margin-top:5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:480px){.grid2{grid-template-columns:1fr}}
+.action-row{display:flex;gap:10px;margin-top:14px}
+.action-row .btn{flex:1;justify-content:center}
+@keyframes fadeDown{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes alertPop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🧠</div>
+      <div class="logo-text">Mind<span>Spend</span></div>
+    </div>
+    <p>Know your emotions. Protect your wallet.</p>
+  </header>
+
+  <div class="steps">
+    <div class="step active" id="step1"><div class="step-num">1</div><span>Mood Check</span></div>
+    <div class="step-line"></div>
+    <div class="step" id="step2"><div class="step-num">2</div><span>Spend Check</span></div>
+    <div class="step-line"></div>
+    <div class="step" id="step3"><div class="step-num">3</div><span>History</span></div>
+  </div>
+
+  <div class="section active" id="sec1">
+    <div class="card">
+      <div class="card-title"><span>📝</span> How are you feeling today?</div>
+      <div style="margin-bottom:16px">
+        <label>Describe your day in a few words</label>
+        <textarea id="moodText" placeholder="e.g. Had a stressful day at work, feel anxious and tired..."></textarea>
+      </div>
+      <div style="margin-bottom:16px">
+        <label>Quick emotion tags (optional)</label>
+        <div class="emotions">
+          <button class="emotion-btn" onclick="toggleEmotion(this)">😰 Stressed</button>
+          <button class="emotion-btn" onclick="toggleEmotion(this)">😢 Sad</button>
+          <button class="emotion-btn" onclick="toggleEmotion(this)">😤 Frustrated</button>
+          <button class="emotion-btn" onclick="toggleEmotion(this)">😊 Happy</button>
+          <button class="emotion-btn" onclick="toggleEmotion(this)">🥳 Excited</button>
+          <button class="emotion-btn" onclick="toggleEmotion(this)">😴 Tired</button>
+          <button class="emotion-btn" onclick="toggleEmotion(this)">😌 Calm</button>
+          <button class="emotion-btn" onclick="toggleEmotion(this)">😰 Anxious</button>
+          <button class="emotion-btn" onclick="toggleEmotion(this)">😠 Angry</button>
+          <button class="emotion-btn" onclick="toggleEmotion(this)">🥱 Bored</button>
+        </div>
+      </div>
+      <div style="margin-bottom:20px">
+        <label>Stress level</label>
+        <div class="slider-wrap">
+          <span style="font-size:13px;color:var(--muted)">Low</span>
+          <input type="range" id="stressSlider" min="1" max="10" value="5" oninput="document.getElementById('stressVal').textContent=this.value">
+          <span style="font-size:13px;color:var(--muted)">High</span>
+          <span class="slider-val" id="stressVal">5</span>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="analyzeMood()" id="moodBtn">Analyze My Mood →</button>
+    </div>
+    <div id="moodResult"></div>
+  </div>
+
+  <div class="section" id="sec2">
+    <div class="card">
+      <div class="card-title"><span>💳</span> About to make a purchase?</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:18px">Tell me what you want to buy and I'll assess the risk based on your current emotional state.</p>
+      <div class="grid2" style="margin-bottom:14px">
+        <div>
+          <label>What do you want to buy?</label>
+          <input type="text" id="itemName" placeholder="e.g. New shoes, gadget...">
+        </div>
+        <div>
+          <label>Estimated price (€)</label>
+          <input type="number" id="itemPrice" placeholder="0" min="0">
+        </div>
+      </div>
+      <div style="margin-bottom:14px">
+        <label>Category</label>
+        <select id="itemCategory">
+          <option value="">Select a category</option>
+          <option>Clothing and Fashion</option>
+          <option>Electronics and Gadgets</option>
+          <option>Food and Drinks</option>
+          <option>Entertainment</option>
+          <option>Health and Beauty</option>
+          <option>Home and Furniture</option>
+          <option>Travel</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div style="margin-bottom:18px">
+        <label>Is this planned or spontaneous?</label>
+        <div style="display:flex;gap:10px;margin-top:6px">
+          <button class="emotion-btn" id="btnPlanned" onclick="selectPlan('planned')">📋 Planned</button>
+          <button class="emotion-btn" id="btnSpontaneous" onclick="selectPlan('spontaneous')">⚡ Spontaneous</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="checkSpending()" id="spendBtn">Check This Purchase →</button>
+    </div>
+    <div id="spendResult"></div>
+    <div style="text-align:center;margin-top:6px">
+      <button class="btn btn-outline" onclick="goToSection(1)">← Back to Mood</button>
+    </div>
+  </div>
+
+  <div class="section" id="sec3">
+    <div class="card">
+      <div class="card-title"><span>📊</span> Session History</div>
+      <div id="historyList"><p style="color:var(--muted);font-size:14px">No checks recorded yet.</p></div>
+    </div>
+    <div style="text-align:center">
+      <button class="btn btn-outline" onclick="goToSection(1)">← Start Over</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let moodData = null;
+let history = [];
+let plannedChoice = null;
+
+function toggleEmotion(btn){ btn.classList.toggle('selected'); }
+
+function selectPlan(v){
+  plannedChoice = v;
+  document.getElementById('btnPlanned').classList.toggle('selected', v==='planned');
+  document.getElementById('btnSpontaneous').classList.toggle('selected', v==='spontaneous');
+}
+
+function getEmotions(){
+  return [...document.querySelectorAll('.emotion-btn.selected')].map(b=>b.textContent.trim()).join(', ');
+}
+
+function goToSection(n){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec'+n).classList.add('active');
+  for(let i=1;i<=3;i++){
+    const s=document.getElementById('step'+i);
+    s.className='step';
+    if(i<n) s.classList.add('done');
+    else if(i===n) s.classList.add('active');
+  }
+  if(n===3) renderHistory();
+}
+
+async function callAI(system, user){
+  const r = await fetch('http://localhost:3000', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system: system,
+      messages: [{ role: 'user', content: user }],
+      max_tokens: 1000
+    })
+  });
+  const d = await r.json();
+  if(d.error) throw new Error(d.error.message);
+  return d.content[0].text;
+}
+
+async function analyzeMood(){
+  const text = document.getElementById('moodText').value.trim();
+  const tags = getEmotions();
+  const stress = document.getElementById('stressSlider').value;
+  if(!text && !tags){ alert('Please describe your day or select an emotion tag.'); return; }
+  const btn = document.getElementById('moodBtn');
+  btn.disabled=true; btn.textContent='Analyzing...';
+  document.getElementById('moodResult').innerHTML=`<div class="loading"><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div> Analyzing your emotional state...</div>`;
+  const sys=`You are an emotional intelligence assistant specialized in behavioral economics. Analyze the user's emotional state and return ONLY a valid JSON object with no markdown fences or extra text:
+{"emotion":"primary emotion 1-2 words","risk_level":"high or medium or low","summary":"2 sentence summary","spending_risk":"1 sentence about spending risk","advice":"1 actionable sentence"}`;
+  const msg=`Day: "${text}". Emotions: ${tags||'none'}. Stress: ${stress}/10.`;
+  try{
+    const raw = await callAI(sys, msg);
+    const d = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    moodData = {...d, stress, text, tags};
+    const cls = d.risk_level==='high'?'danger':d.risk_level==='medium'?'warning':'safe';
+    const ico = d.risk_level==='high'?'🔴':d.risk_level==='medium'?'🟡':'🟢';
+    document.getElementById('moodResult').innerHTML=`
+      <div class="alert ${cls}">
+        <div class="alert-header"><span class="alert-icon">${ico}</span><div class="alert-title">Emotional State: ${d.emotion}</div></div>
+        <div class="alert-body">
+          <p>${d.summary}</p>
+          <p><strong>Spending risk:</strong> ${d.spending_risk}</p>
+          <p>💡 ${d.advice}</p>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="goToSection(2)">Check a Purchase →</button>`;
+  }catch(e){
+    document.getElementById('moodResult').innerHTML=`<div class="alert danger"><div class="alert-body">❌ Error: ${e.message}</div></div>`;
+  }
+  btn.disabled=false; btn.textContent='Analyze My Mood →';
+}
+
+async function checkSpending(){
+  if(!moodData){ alert('Please complete mood check first.'); goToSection(1); return; }
+  const item = document.getElementById('itemName').value.trim();
+  const price = document.getElementById('itemPrice').value;
+  const cat = document.getElementById('itemCategory').value;
+  if(!item){ alert('Please enter what you want to buy.'); return; }
+  const btn = document.getElementById('spendBtn');
+  btn.disabled=true; btn.textContent='Checking...';
+  document.getElementById('spendResult').innerHTML=`<div class="loading"><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div> Evaluating purchase risk...</div>`;
+  const sys=`You are a behavioral economics coach. Based on the user's emotional state and purchase, return ONLY valid JSON with no markdown fences or extra text:
+{"verdict":"block or warn or allow","title":"short verdict 5-7 words","main_message":"2-3 sentences direct empathetic message","reasoning":"1-2 sentences why","suggestion":"one concrete tip","wait_hours":null or number}
+Rules: block=high risk+impulsive, warn=moderate risk, allow=low risk or essential.`;
+  const msg=`Emotional state: ${moodData.emotion}, risk: ${moodData.risk_level}, stress: ${moodData.stress}/10. Purchase: "${item}", price: €${price||'unknown'}, category: ${cat||'unspecified'}, type: ${plannedChoice||'unknown'}.`;
+  try{
+    const raw = await callAI(sys, msg);
+    const d = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    const cls = d.verdict==='block'?'danger':d.verdict==='warn'?'warning':'safe';
+    const ico = d.verdict==='block'?'🚫':d.verdict==='warn'?'⚠️':'✅';
+    const waitTxt = d.wait_hours?`<p>⏳ Wait <strong>${d.wait_hours} hour${d.wait_hours>1?'s':''}</strong> before deciding.</p>`:'';
+    const safeItem = item.replace(/'/g,"\\'");
+    let actions='';
+    if(d.verdict==='block') actions=`<div class="action-row"><button class="btn btn-danger" onclick="logDec('skipped','${safeItem}','${d.verdict}')">Skip Purchase</button><button class="btn btn-outline" onclick="logDec('ignored','${safeItem}','${d.verdict}')">Buy Anyway</button></div>`;
+    else if(d.verdict==='warn') actions=`<div class="action-row"><button class="btn btn-outline" onclick="logDec('postponed','${safeItem}','${d.verdict}')">Postpone</button><button class="btn btn-primary" onclick="logDec('proceeded','${safeItem}','${d.verdict}')" style="background:rgba(99,102,241,.8)">Proceed Mindfully</button></div>`;
+    else actions=`<div class="action-row"><button class="btn btn-primary" onclick="logDec('approved','${safeItem}','${d.verdict}')">Go Ahead!</button></div>`;
+    document.getElementById('spendResult').innerHTML=`
+      <div class="alert ${cls}">
+        <div class="alert-header"><span class="alert-icon">${ico}</span><div class="alert-title">${d.title}</div></div>
+        <div class="alert-body">
+          <p>${d.main_message}</p>
+          <p><em>${d.reasoning}</em></p>
+          ${waitTxt}
+          <p>💡 ${d.suggestion}</p>
+        </div>
+        ${actions}
+      </div>`;
+  }catch(e){
+    document.getElementById('spendResult').innerHTML=`<div class="alert danger"><div class="alert-body">❌ Error: ${e.message}</div></div>`;
+  }
+  btn.disabled=false; btn.textContent='Check This Purchase →';
+}
+
+function logDec(action, item, verdict){
+  history.unshift({action,item,verdict,time:new Date().toLocaleTimeString(),mood:moodData?.emotion||'unknown'});
+  document.getElementById('spendResult').insertAdjacentHTML('beforeend',`<p style="color:var(--muted);font-size:13px;text-align:center;margin-top:10px">Logged ✓ — <a href="#" onclick="goToSection(3);return false" style="color:var(--indigo)">View history</a></p>`);
+}
+
+function renderHistory(){
+  const el = document.getElementById('historyList');
+  if(!history.length){el.innerHTML='<p style="color:var(--muted);font-size:14px">No checks recorded yet.</p>';return;}
+  const icons={skipped:'🚫',ignored:'😬',postponed:'⏸️',proceeded:'🟡',approved:'✅'};
+  el.innerHTML=history.map(h=>`<div class="history-item ${h.verdict==='block'?'danger':h.verdict==='warn'?'warning':'safe'}"><strong>${icons[h.action]||'📌'} ${h.item}</strong> — <em>${h.action}</em><div class="history-meta">Mood: ${h.mood} · ${h.time}</div></div>`).join('');
+}
+</script>
+</body>
+</html>
