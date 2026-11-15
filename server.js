@@ -1,73 +1,115 @@
+// MindWallet: tiny Node.js server (no dependencies).
+// Serves the web app and proxies AI requests to Groq so the API key never
+// reaches the browser.
+//
+//   GROQ_API_KEY=gsk_... node server.js      (or put it in a .env file)
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const GROQ_API_KEY = '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'; // <-- paste your key here
+loadDotEnv(path.join(__dirname, '.env'));
 
-const server = http.createServer(async (req, res) => {
-  console.log(req.method, req.url);
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const PORT = Number(process.env.PORT) || 3000;
+const MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+const MAX_BODY_BYTES = 20_000;
 
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+if (!GROQ_API_KEY) {
+  console.error('❌ GROQ_API_KEY is not set. Copy .env.example to .env and add your key (https://console.groq.com/keys).');
+  process.exit(1);
+}
 
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    return res.end();
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return fs.createReadStream(path.join(__dirname, 'mindspend.html')).pipe(res);
   }
 
-  if (req.method === 'GET') {
-    const html = fs.readFileSync(path.join(__dirname, 'mindspend.html'));
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    return res.end(html);
+  if (req.method === 'POST' && url.pathname === '/api/chat') {
+    return handleChat(req, res);
   }
 
-  if (req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', async () => {
-      try {
-        const incoming = JSON.parse(body);
+  sendJson(res, 404, { error: { message: 'Not found' } });
+});
 
-        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${GROQ_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            max_tokens: 1000,
-            messages: [
-              { role: 'system', content: incoming.system || '' },
-              ...incoming.messages
-            ]
-          })
-        });
+function handleChat(req, res) {
+  let body = '';
+  let tooLarge = false;
 
-        const data = await groqRes.json();
-        console.log('Status:', groqRes.status);
-        console.log('Response:', JSON.stringify(data).slice(0, 300));
+  req.on('data', chunk => {
+    body += chunk;
+    if (body.length > MAX_BODY_BYTES) {
+      tooLarge = true;
+      req.destroy();
+    }
+  });
 
-        if (data.error) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ error: { message: data.error.message } }));
-        }
+  req.on('end', async () => {
+    if (tooLarge) return sendJson(res, 413, { error: { message: 'Request too large' } });
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          content: [{ type: 'text', text: data.choices[0].message.content }]
-        }));
+    let incoming;
+    try {
+      incoming = JSON.parse(body);
+    } catch {
+      return sendJson(res, 400, { error: { message: 'Invalid JSON' } });
+    }
 
-      } catch (e) {
-        console.error('Error:', e.message);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: { message: e.message } }));
+    const messages = Array.isArray(incoming.messages)
+      ? incoming.messages
+          .filter(m => m && m.role === 'user' && typeof m.content === 'string')
+          .map(m => ({ role: 'user', content: m.content }))
+      : [];
+    if (!messages.length) return sendJson(res, 400, { error: { message: 'No message to send' } });
+
+    try {
+      const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: 1000,
+          temperature: 0.4,
+          // Ask for a JSON object: the front end parses the answer
+          response_format: { type: 'json_object' },
+          messages: [{ role: 'system', content: String(incoming.system || '') }, ...messages],
+        }),
+      });
+
+      const data = await groqRes.json();
+      if (!groqRes.ok || data.error) {
+        console.error('Groq error:', groqRes.status, data.error?.message);
+        return sendJson(res, 502, { error: { message: data.error?.message || 'AI service error' } });
       }
-    });
-    return;
-  }
-});
 
-server.listen(3000, () => {
-  console.log('✅ MindSpend running at http://localhost:3000');
-});
+      sendJson(res, 200, { content: [{ type: 'text', text: data.choices[0].message.content }] });
+    } catch (e) {
+      console.error('Error:', e.message);
+      sendJson(res, 500, { error: { message: 'Could not reach the AI service' } });
+    }
+  });
+}
+
+function sendJson(res, status, payload) {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(payload));
+}
+
+// Minimal .env loader (KEY=value per line) so the app needs no npm packages.
+function loadDotEnv(file) {
+  if (!fs.existsSync(file)) return;
+  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/i);
+    if (match && !(match[1] in process.env)) {
+      process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
+    }
+  }
+}
+
+if (require.main === module) {
+  server.listen(PORT, () => console.log(`✅ MindWallet running at http://localhost:${PORT}`));
+}
+
+module.exports = { server };

@@ -1,6 +1,0 @@
-jib API Grok
-
-hottou fi serveur.js
-
-in terminal : node server.js
-to start .
