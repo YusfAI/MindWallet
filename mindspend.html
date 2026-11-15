@@ -68,6 +68,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 @media(max-width:480px){.grid2{grid-template-columns:1fr}}
 .action-row{display:flex;gap:10px;margin-top:14px}
 .action-row .btn{flex:1;justify-content:center}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.stat{background:var(--surface2);border-radius:12px;padding:12px;text-align:center}
+.stat-val{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--accent)}
+.stat-label{font-size:11px;color:var(--muted);margin-top:2px}
 @keyframes fadeDown{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 @keyframes alertPop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
@@ -173,19 +178,37 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 
   <div class="section" id="sec3">
     <div class="card">
-      <div class="card-title"><span>📊</span> Session History</div>
+      <div class="card-title"><span>📊</span> Your History</div>
+      <div class="stats" id="historyStats"></div>
       <div id="historyList"><p style="color:var(--muted);font-size:14px">No checks recorded yet.</p></div>
     </div>
-    <div style="text-align:center">
+    <div style="display:flex;gap:10px;justify-content:center">
       <button class="btn btn-outline" onclick="goToSection(1)">← Start Over</button>
+      <button class="btn btn-danger" onclick="clearHistory()">Clear history</button>
     </div>
   </div>
 </div>
 
 <script>
 let moodData = null;
-let history = [];
 let plannedChoice = null;
+let pendingCheck = null;   // purchase currently shown, waiting for the user's decision
+const STORAGE_KEY = 'mindwallet.history';
+let checks = loadChecks();
+
+// Everything written with innerHTML goes through this: AI answers and user input are text, never HTML
+function esc(v){
+  return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function loadChecks(){
+  try { const v = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+
+function saveChecks(){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checks)); } catch { /* storage unavailable: keep in memory */ }
+}
 
 function toggleEmotion(btn){ btn.classList.toggle('selected'); }
 
@@ -212,7 +235,7 @@ function goToSection(n){
 }
 
 async function callAI(system, user){
-  const r = await fetch('http://localhost:3000', {
+  const r = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -245,16 +268,16 @@ async function analyzeMood(){
     const ico = d.risk_level==='high'?'🔴':d.risk_level==='medium'?'🟡':'🟢';
     document.getElementById('moodResult').innerHTML=`
       <div class="alert ${cls}">
-        <div class="alert-header"><span class="alert-icon">${ico}</span><div class="alert-title">Emotional State: ${d.emotion}</div></div>
+        <div class="alert-header"><span class="alert-icon">${ico}</span><div class="alert-title">Emotional State: ${esc(d.emotion)}</div></div>
         <div class="alert-body">
-          <p>${d.summary}</p>
-          <p><strong>Spending risk:</strong> ${d.spending_risk}</p>
-          <p>💡 ${d.advice}</p>
+          <p>${esc(d.summary)}</p>
+          <p><strong>Spending risk:</strong> ${esc(d.spending_risk)}</p>
+          <p>💡 ${esc(d.advice)}</p>
         </div>
       </div>
       <button class="btn btn-primary" onclick="goToSection(2)">Check a Purchase →</button>`;
   }catch(e){
-    document.getElementById('moodResult').innerHTML=`<div class="alert danger"><div class="alert-body">❌ Error: ${e.message}</div></div>`;
+    document.getElementById('moodResult').innerHTML=`<div class="alert danger"><div class="alert-body">❌ Error: ${esc(e.message)}</div></div>`;
   }
   btn.disabled=false; btn.textContent='Analyze My Mood →';
 }
@@ -277,39 +300,71 @@ Rules: block=high risk+impulsive, warn=moderate risk, allow=low risk or essentia
     const d = JSON.parse(raw.replace(/```json|```/g,'').trim());
     const cls = d.verdict==='block'?'danger':d.verdict==='warn'?'warning':'safe';
     const ico = d.verdict==='block'?'🚫':d.verdict==='warn'?'⚠️':'✅';
-    const waitTxt = d.wait_hours?`<p>⏳ Wait <strong>${d.wait_hours} hour${d.wait_hours>1?'s':''}</strong> before deciding.</p>`:'';
-    const safeItem = item.replace(/'/g,"\\'");
+    const hours = Number(d.wait_hours);
+    const waitTxt = hours>0?`<p>⏳ Wait <strong>${hours} hour${hours>1?'s':''}</strong> before deciding.</p>`:'';
+    pendingCheck = { item, price: Number(price)||0, verdict: d.verdict };
     let actions='';
-    if(d.verdict==='block') actions=`<div class="action-row"><button class="btn btn-danger" onclick="logDec('skipped','${safeItem}','${d.verdict}')">Skip Purchase</button><button class="btn btn-outline" onclick="logDec('ignored','${safeItem}','${d.verdict}')">Buy Anyway</button></div>`;
-    else if(d.verdict==='warn') actions=`<div class="action-row"><button class="btn btn-outline" onclick="logDec('postponed','${safeItem}','${d.verdict}')">Postpone</button><button class="btn btn-primary" onclick="logDec('proceeded','${safeItem}','${d.verdict}')" style="background:rgba(99,102,241,.8)">Proceed Mindfully</button></div>`;
-    else actions=`<div class="action-row"><button class="btn btn-primary" onclick="logDec('approved','${safeItem}','${d.verdict}')">Go Ahead!</button></div>`;
+    if(d.verdict==='block') actions=`<div class="action-row"><button class="btn btn-danger" onclick="logDec('skipped')">Skip Purchase</button><button class="btn btn-outline" onclick="logDec('ignored')">Buy Anyway</button></div>`;
+    else if(d.verdict==='warn') actions=`<div class="action-row"><button class="btn btn-outline" onclick="logDec('postponed')">Postpone</button><button class="btn btn-primary" onclick="logDec('proceeded')" style="background:rgba(99,102,241,.8)">Proceed Mindfully</button></div>`;
+    else actions=`<div class="action-row"><button class="btn btn-primary" onclick="logDec('approved')">Go Ahead!</button></div>`;
     document.getElementById('spendResult').innerHTML=`
       <div class="alert ${cls}">
-        <div class="alert-header"><span class="alert-icon">${ico}</span><div class="alert-title">${d.title}</div></div>
+        <div class="alert-header"><span class="alert-icon">${ico}</span><div class="alert-title">${esc(d.title)}</div></div>
         <div class="alert-body">
-          <p>${d.main_message}</p>
-          <p><em>${d.reasoning}</em></p>
+          <p>${esc(d.main_message)}</p>
+          <p><em>${esc(d.reasoning)}</em></p>
           ${waitTxt}
-          <p>💡 ${d.suggestion}</p>
+          <p>💡 ${esc(d.suggestion)}</p>
         </div>
         ${actions}
       </div>`;
   }catch(e){
-    document.getElementById('spendResult').innerHTML=`<div class="alert danger"><div class="alert-body">❌ Error: ${e.message}</div></div>`;
+    document.getElementById('spendResult').innerHTML=`<div class="alert danger"><div class="alert-body">❌ Error: ${esc(e.message)}</div></div>`;
   }
   btn.disabled=false; btn.textContent='Check This Purchase →';
 }
 
-function logDec(action, item, verdict){
-  history.unshift({action,item,verdict,time:new Date().toLocaleTimeString(),mood:moodData?.emotion||'unknown'});
+function logDec(action){
+  if(!pendingCheck) return;
+  checks.unshift({ action, item: pendingCheck.item, price: pendingCheck.price, verdict: pendingCheck.verdict,
+                   time: new Date().toISOString(), mood: moodData?.emotion || 'unknown' });
+  pendingCheck = null;
+  saveChecks();
+  document.querySelectorAll('#spendResult .action-row button').forEach(b => b.disabled = true);
   document.getElementById('spendResult').insertAdjacentHTML('beforeend',`<p style="color:var(--muted);font-size:13px;text-align:center;margin-top:10px">Logged ✓ — <a href="#" onclick="goToSection(3);return false" style="color:var(--indigo)">View history</a></p>`);
+}
+
+function clearHistory(){
+  if(!confirm('Delete your whole history?')) return;
+  checks = [];
+  saveChecks();
+  renderHistory();
 }
 
 function renderHistory(){
   const el = document.getElementById('historyList');
-  if(!history.length){el.innerHTML='<p style="color:var(--muted);font-size:14px">No checks recorded yet.</p>';return;}
+  const stats = document.getElementById('historyStats');
+  if(!checks.length){
+    el.innerHTML='<p style="color:var(--muted);font-size:14px">No checks recorded yet.</p>';
+    stats.innerHTML='';
+    return;
+  }
+  // Money kept: purchases the user skipped or postponed after a warning
+  const kept = checks.filter(h => h.action==='skipped' || h.action==='postponed');
+  const saved = kept.reduce((sum, h) => sum + (Number(h.price)||0), 0);
+  const impulsive = checks.filter(h => h.verdict!=='allow').length;
+  stats.innerHTML=`
+    <div class="stat"><div class="stat-val">${checks.length}</div><div class="stat-label">purchases checked</div></div>
+    <div class="stat"><div class="stat-val">${impulsive}</div><div class="stat-label">flagged as risky</div></div>
+    <div class="stat"><div class="stat-val">€${saved.toLocaleString()}</div><div class="stat-label">kept in your wallet</div></div>`;
+
   const icons={skipped:'🚫',ignored:'😬',postponed:'⏸️',proceeded:'🟡',approved:'✅'};
-  el.innerHTML=history.map(h=>`<div class="history-item ${h.verdict==='block'?'danger':h.verdict==='warn'?'warning':'safe'}"><strong>${icons[h.action]||'📌'} ${h.item}</strong> — <em>${h.action}</em><div class="history-meta">Mood: ${h.mood} · ${h.time}</div></div>`).join('');
+  el.innerHTML=checks.map(h=>{
+    const when = new Date(h.time);
+    const label = isNaN(when) ? esc(h.time) : when.toLocaleString([], {dateStyle:'medium', timeStyle:'short'});
+    const price = h.price ? ` · €${esc(h.price)}` : '';
+    return `<div class="history-item ${h.verdict==='block'?'danger':h.verdict==='warn'?'warning':'safe'}"><strong>${icons[h.action]||'📌'} ${esc(h.item)}</strong> — <em>${esc(h.action)}</em><div class="history-meta">Mood: ${esc(h.mood)}${price} · ${label}</div></div>`;
+  }).join('');
 }
 </script>
 </body>
